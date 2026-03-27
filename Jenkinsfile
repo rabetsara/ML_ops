@@ -2,59 +2,61 @@ pipeline {
     agent any
 
     environment {
+        // Nom de l'image de ton application
         DOCKER_IMAGE = "smartphones-ml-app"
     }
 
     stages {
-        stage('Checkout') {
+        stage('Cleanup') {
             steps {
-                // Récupération du code depuis GitHub (déjà configuré par ton lien Git)
-                checkout scm
+                echo "Nettoyage des anciens conteneurs..."
+                sh 'docker-compose down --remove-orphans || true'
             }
         }
 
         stage('Build Image') {
             steps {
-                script {
-                    sh "docker build -t ${DOCKER_IMAGE} ."
-                }
+                echo "Construction de l'image Docker de l'application..."
+                sh "docker build -t ${DOCKER_IMAGE} ."
             }
         }
 
         stage('Start MLflow') {
             steps {
-                // On lance MLflow en arrière-plan s'il n'est pas déjà là
-                sh "docker-compose up -d mlflow"
+                echo "Démarrage du serveur MLflow..."
+                sh 'docker-compose up -d mlflow'
+                // On attend que le serveur soit prêt (important pour éviter Connection Refused)
+                echo "Attente du démarrage (20 secondes)..."
+                sleep 20
             }
         }
 
-        stage('Training & Logging') {
+        stage('Model Training') {
             steps {
-                script {
-                    // On exécute l'entraînement à l'intérieur du conteneur
-                    // On utilise le réseau de docker-compose pour parler à MLflow
-                    sh "docker-compose run --rm training-app python train_phone.py"
-                }
+                echo "Lancement de l'entraînement du modèle..."
+                // On utilise 'run' pour que le script s'exécute dans le réseau du compose
+                sh 'docker-compose run --rm app python train_phone.py'
             }
         }
 
         stage('Model Validation') {
             steps {
-                script {
-                    // Test de la prédiction avec les données de batch
-                    sh "docker-compose run --rm training-app python predict_phone.py"
-                }
+                echo "Test de prédiction..."
+                sh 'docker-compose run --rm app python predict_phone.py'
             }
         }
     }
 
     post {
         always {
-            // Nettoyage des conteneurs de run, mais on garde MLflow
-            sh "docker-compose stop"
+            echo "Arrêt des services..."
+            sh 'docker-compose stop'
         }
         success {
-            echo "Pipeline terminé avec succès ! Le modèle est disponible sur MLflow (port 5000)."
+            echo "Pipeline terminé avec succès !"
+        }
+        failure {
+            echo "Le pipeline a échoué. Vérifiez les logs."
         }
     }
 }
