@@ -6,7 +6,7 @@ services:
     container_name: mlflow_server
     ports:
       - "5000:5000"
-    # AJOUT DE --disable-host-validation ICI
+    # Désactivation de la validation d'hôte pour autoriser les requêtes du conteneur 'app'
     command: >
       mlflow ui 
       --host 0.0.0.0 
