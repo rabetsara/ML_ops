@@ -6,7 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 
 # 1) MLflow setup
-mlflow.set_tracking_uri("http://127.0.0.1:5000")
+#mlflow.set_tracking_uri("http://127.0.0.1:5000")
+# 'mlflow' correspond au nom du service dans ton fichier docker-compose.yml
+mlflow.set_tracking_uri("http://mlflow:5000")
 mlflow.set_experiment("smartphones-price-prediction")
 
 # 2) Preprocessing
