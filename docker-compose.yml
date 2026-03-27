@@ -1,18 +1,20 @@
 version: '3.8'
 
 services:
-  # Serveur MLflow
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: mlflow_server
     ports:
       - "5000:5000"
-    # On expose sur 0.0.0.0 pour que ce soit accessible hors du conteneur
-    command: mlflow ui --host 0.0.0.0
+    # AJOUT DE --disable-host-validation ICI
+    command: >
+      mlflow ui 
+      --host 0.0.0.0 
+      --port 5000 
+      --disable-host-validation
     networks:
       - ml_network
 
-  # Application (Entraînement et Prédiction)
   app:
     build: .
     image: smartphones-ml-app
@@ -21,7 +23,6 @@ services:
       - mlflow
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-    # On garde mlruns en volume pour ne pas perdre les courbes si le conteneur s'arrête
     volumes:
       - ./mlruns:/app/mlruns
     networks:
