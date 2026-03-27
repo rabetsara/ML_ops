@@ -6,14 +6,12 @@ services:
     container_name: mlflow_server
     ports:
       - "5000:5000"
-    # Désactivation de la validation d'hôte pour autoriser les requêtes du conteneur 'app'
+    # Désactivation de la validation d'hôte pour accepter les requêtes provenant de l'alias 'mlflow'
     command: >
       mlflow ui 
       --host 0.0.0.0 
       --port 5000 
       --disable-host-validation
-    networks:
-      - ml_network
 
   app:
     build: .
@@ -25,9 +23,3 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./mlruns:/app/mlruns
-    networks:
-      - ml_network
-
-networks:
-  ml_network:
-    driver: bridge
