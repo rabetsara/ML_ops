@@ -3,7 +3,9 @@ import pandas as pd
 import mlflow
 
 # 1) MLflow setup
-mlflow.set_tracking_uri("http://127.0.0.1:5000")
+#mlflow.set_tracking_uri("http://127.0.0.1:5000")
+# 'mlflow' correspond au nom du service dans ton fichier docker-compose.yml
+mlflow.set_tracking_uri("http://mlflow:5000")
 mlflow.set_experiment("smartphones-price-prediction")
 
 # 2) Chargement du modèle
