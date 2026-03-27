@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        // Nom de l'image de ton application
-        DOCKER_IMAGE = "smartphones-ml-app"
-    }
-
     stages {
         stage('Cleanup') {
             steps {
@@ -16,16 +11,16 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                echo "Construction de l'image Docker de l'application..."
-                sh "docker build -t ${DOCKER_IMAGE} ."
+                echo "Construction de l'image de l'application..."
+                // On build via compose pour s'assurer que les tags correspondent
+                sh 'docker-compose build app'
             }
         }
 
         stage('Start MLflow') {
             steps {
-                echo "Démarrage du serveur MLflow..."
+                echo "Démarrage de MLflow..."
                 sh 'docker-compose up -d mlflow'
-                // On attend que le serveur soit prêt (important pour éviter Connection Refused)
                 echo "Attente du démarrage (20 secondes)..."
                 sleep 20
             }
@@ -33,15 +28,15 @@ pipeline {
 
         stage('Model Training') {
             steps {
-                echo "Lancement de l'entraînement du modèle..."
-                // On utilise 'run' pour que le script s'exécute dans le réseau du compose
+                echo "Lancement de l'entraînement..."
+                // Utilisation impérative de docker-compose run pour hériter du DNS
                 sh 'docker-compose run --rm app python train_phone.py'
             }
         }
 
         stage('Model Validation') {
             steps {
-                echo "Test de prédiction..."
+                echo "Lancement de la prédiction..."
                 sh 'docker-compose run --rm app python predict_phone.py'
             }
         }
@@ -51,12 +46,6 @@ pipeline {
         always {
             echo "Arrêt des services..."
             sh 'docker-compose stop'
-        }
-        success {
-            echo "Pipeline terminé avec succès !"
-        }
-        failure {
-            echo "Le pipeline a échoué. Vérifiez les logs."
         }
     }
 }
