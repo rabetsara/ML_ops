@@ -1,20 +1,32 @@
 version: '3.8'
 
 services:
+  # Serveur MLflow
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.11.3
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlflow_server
     ports:
       - "5000:5000"
-    volumes:
-      - ./mlruns:/app/mlruns
-    command: mlflow ui --host 0.0.0.0 --port 5000
+    # On expose sur 0.0.0.0 pour que ce soit accessible hors du conteneur
+    command: mlflow ui --host 0.0.0.0
+    networks:
+      - ml_network
 
-  training-app:
+  # Application (Entraînement et Prédiction)
+  app:
     build: .
+    image: smartphones-ml-app
+    container_name: ml_app_container
     depends_on:
       - mlflow
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+    # On garde mlruns en volume pour ne pas perdre les courbes si le conteneur s'arrête
     volumes:
       - ./mlruns:/app/mlruns
-      - .:/app
+    networks:
+      - ml_network
+
+networks:
+  ml_network:
+    driver: bridge
