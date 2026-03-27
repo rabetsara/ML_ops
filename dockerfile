@@ -1,21 +1,8 @@
 FROM python:3.9-slim
-
 WORKDIR /app
-
-# Installation des dépendances système nécessaires
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copie des fichiers de configuration
+# On ne réinstalle pas build-essential si ça a marché sans, pour gagner du temps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copie du reste du code
 COPY . .
-
-# Création du dossier data si nécessaire
-RUN mkdir -p data
-
-# Par défaut, on ne fait rien, Jenkins lancera les scripts spécifiques
-CMD ["python"]
+# CRUCIAL : Indique le script à lancer par défaut
+CMD ["python", "train_phone.py"]
