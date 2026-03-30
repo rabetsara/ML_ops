@@ -23,7 +23,7 @@ pipeline {
                 sh '''
                     mkdir -p ${WORKSPACE}/trivy-reports
 
-                    # Scan en JSON — aucun template externe nécessaire
+                    # Étape 1 : Scan Trivy → JSON (pas de template externe)
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
@@ -35,34 +35,35 @@ pipeline {
                         --output /reports/trivy-raw.json \
                         smartphones-ml-app
 
-                    # Conversion JSON → CSV via Python
-                    python3 - << 'PYEOF'
+                    # Étape 2 : Conversion JSON → CSV via conteneur Python
+                    docker run --rm \
+                        -v ${WORKSPACE}/trivy-reports:/reports \
+                        python:3.9-slim \
+                        python3 -c "
 import json, csv
 
-with open("/var/jenkins_home/workspace/ML_ops/trivy-reports/trivy-raw.json") as f:
+with open('/reports/trivy-raw.json') as f:
     data = json.load(f)
 
 rows = []
-for result in data.get("Results", []):
-    for vuln in result.get("Vulnerabilities", []):
+for result in data.get('Results', []):
+    for vuln in result.get('Vulnerabilities', []):
         rows.append([
-            vuln.get("PkgName", ""),
-            vuln.get("VulnerabilityID", ""),
-            vuln.get("Severity", ""),
-            vuln.get("InstalledVersion", ""),
-            vuln.get("FixedVersion", ""),
-            vuln.get("Title", "").replace(",", " ")
+            vuln.get('PkgName', ''),
+            vuln.get('VulnerabilityID', ''),
+            vuln.get('Severity', ''),
+            vuln.get('InstalledVersion', ''),
+            vuln.get('FixedVersion', ''),
+            vuln.get('Title', '').replace(',', ' ')
         ])
 
-out = "/var/jenkins_home/workspace/ML_ops/trivy-reports/resultat.csv"
-with open(out, "w", newline="") as f:
+with open('/reports/resultat.csv', 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(["PackageName","VulnerabilityID","Severity","InstalledVersion","FixedVersion","Title"])
+    writer.writerow(['PackageName','VulnerabilityID','Severity','InstalledVersion','FixedVersion','Title'])
     writer.writerows(rows)
 
-print(f"CSV généré : {len(rows)} vulnerabilites HIGH/CRITICAL")
-PYEOF
-
+print(f'CSV genere : {len(rows)} vulnerabilites HIGH/CRITICAL')
+"
                     echo "--- Aperçu du rapport ---"
                     head -20 ${WORKSPACE}/trivy-reports/resultat.csv
                 '''
