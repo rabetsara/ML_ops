@@ -20,7 +20,8 @@ pipeline {
         stage('Security Scan (Trivy)') {
             steps {
                 echo "Scan de sécurité de l'image avec Trivy..."
-                sh 'mkdir -p trivy-reports'
+
+                sh 'mkdir -p ${WORKSPACE}/trivy-reports'
 
                 writeFile file: 'trivy-reports/csv.tpl', text: '''PackageName,VulnerabilityID,Severity,InstalledVersion,FixedVersion,Title
 {{- range . }}
@@ -30,10 +31,14 @@ pipeline {
 {{- end }}
 '''
                 sh '''
+                    echo "=== Vérification du template avant scan ==="
+                    ls -la ${WORKSPACE}/trivy-reports/
+                    cat ${WORKSPACE}/trivy-reports/csv.tpl
+
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
-                        -v $(pwd)/trivy-reports:/reports \
+                        -v ${WORKSPACE}/trivy-reports:/reports \
                         aquasec/trivy:0.69.3 image \
                         --exit-code 0 \
                         --severity HIGH,CRITICAL \
@@ -43,7 +48,7 @@ pipeline {
                         smartphones-ml-app
 
                     echo "--- Aperçu du rapport Trivy ---"
-                    cat trivy-reports/resultat.csv
+                    cat ${WORKSPACE}/trivy-reports/resultat.csv
                 '''
             }
             post {
