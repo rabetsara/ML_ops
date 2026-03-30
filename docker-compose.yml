@@ -1,4 +1,7 @@
+version: "3.9"
+
 services:
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: mlflow_server
@@ -12,12 +15,15 @@ services:
       --host 0.0.0.0
       --port 5000
       --disable-host-validation
+
+    # 🔥 HEALTHCHECK CORRIGÉ (sans curl)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
+
 
   app:
     build: .
@@ -31,6 +37,7 @@ services:
       - ./mlruns:/app/mlruns
       - .:/app
 
+
   train:
     build: .
     image: smartphones-ml-app
@@ -43,6 +50,7 @@ services:
       - ./mlruns:/app/mlruns
       - .:/app
     command: python train_phone.py
+
 
   predict:
     build: .
