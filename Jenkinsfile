@@ -17,43 +17,48 @@ pipeline {
             }
         }
 
-        stage('Security Scan (Trivy)') {
-            steps {
-                echo "Scan de sécurité de l'image avec Trivy..."
-                sh '''
-                    mkdir -p ${WORKSPACE}/trivy-reports
+       stage('Security Scan (Trivy)') {
+    steps {
+        echo "Scan de sécurité de l'image avec Trivy..."
+        sh '''
+            mkdir -p ${WORKSPACE}/trivy-reports
 
-                    # Étape 1 : Scan → JSON
-                    docker run --rm \
-                        -v /var/run/docker.sock:/var/run/docker.sock \
-                        -v $HOME/.cache/trivy:/root/.cache/trivy \
-                        -v ${WORKSPACE}/trivy-reports:/reports \
-                        aquasec/trivy:0.69.3 image \
-                        --exit-code 0 \
-                        --severity HIGH,CRITICAL \
-                        --format json \
-                        --output /reports/trivy-raw.json \
-                        smartphones-ml-app
+            # Scan → JSON
+            docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v $HOME/.cache/trivy:/root/.cache/trivy \
+                -v ${WORKSPACE}/trivy-reports:/reports \
+                aquasec/trivy:0.69.3 image \
+                --exit-code 0 \
+                --severity HIGH,CRITICAL \
+                --format json \
+                --output /reports/trivy-raw.json \
+                smartphones-ml-app
 
-                    # Étape 2 : JSON → CSV avec trivy convert --format csv (natif v0.69)
-                    docker run --rm \
-                        -v ${WORKSPACE}/trivy-reports:/reports \
-                        aquasec/trivy:0.69.3 convert \
-                        --format csv \
-                        --output /reports/resultat.csv \
-                        /reports/trivy-raw.json
+            # JSON → CSV avec jq (inclus dans l image Trivy)
+            docker run --rm \
+                --entrypoint jq \
+                -v ${WORKSPACE}/trivy-reports:/reports \
+                aquasec/trivy:0.69.3 \
+                -r '
+                  ["PackageName","VulnerabilityID","Severity","InstalledVersion","FixedVersion","Title"],
+                  (.Results[]?.Vulnerabilities[]? |
+                  [.PkgName, .VulnerabilityID, .Severity, .InstalledVersion, (.FixedVersion // ""), (.Title // "" | gsub(","; " "))])
+                  | @csv
+                ' \
+                /reports/trivy-raw.json > ${WORKSPACE}/trivy-reports/resultat.csv
 
-                    echo "--- Aperçu du rapport ---"
-                    head -20 ${WORKSPACE}/trivy-reports/resultat.csv
-                '''
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'trivy-reports/resultat.csv',
-                                     allowEmptyArchive: true
-                }
-            }
+            echo "--- Aperçu du rapport ---"
+            head -20 ${WORKSPACE}/trivy-reports/resultat.csv
+        '''
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'trivy-reports/resultat.csv',
+                             allowEmptyArchive: true
         }
+    }
+}
 
         stage('Start MLflow') {
             steps {
