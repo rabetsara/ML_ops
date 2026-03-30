@@ -1,5 +1,6 @@
 pipeline {
     agent any
+
     stages {
         stage('Cleanup') {
             steps {
@@ -19,19 +20,16 @@ pipeline {
         stage('Security Scan (Trivy)') {
             steps {
                 echo "Scan de sécurité de l'image avec Trivy..."
-                sh '''
-                    mkdir -p trivy-reports
+                sh 'mkdir -p trivy-reports'
 
-                    cat > trivy-reports/csv.tpl << 'EOF'
-PackageName,VulnerabilityID,Severity,InstalledVersion,FixedVersion,Title
+                writeFile file: 'trivy-reports/csv.tpl', text: '''PackageName,VulnerabilityID,Severity,InstalledVersion,FixedVersion,Title
 {{- range . }}
-{{- $target := .Target }}
 {{- range .Vulnerabilities }}
 {{ .PkgName }},{{ .VulnerabilityID }},{{ .Severity }},{{ .InstalledVersion }},{{ .FixedVersion }},{{ .Title | js }}
 {{- end }}
 {{- end }}
-EOF
-
+'''
+                sh '''
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
@@ -93,8 +91,13 @@ EOF
 
     post {
         always {
-            echo "Arrêt des services..."
-            sh 'docker-compose down --remove-orphans || true'
+            script {
+                try {
+                    sh 'docker-compose down --remove-orphans || true'
+                } catch (Exception e) {
+                    echo "Impossible d'arrêter les services : ${e.message}"
+                }
+            }
         }
         success {
             echo "Pipeline terminé avec succès !"
