@@ -10,7 +10,7 @@ pipeline {
 
         stage('Cleanup') {
             steps {
-                echo "Nettoyage des anciens conteneurs..."
+                echo "Nettoyage..."
                 sh 'docker-compose down --remove-orphans || true'
                 sh 'docker rmi smartphones-ml-app || true'
             }
@@ -18,19 +18,18 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                echo "Construction de l'image..."
+                echo "Build Docker..."
                 sh 'docker-compose build app'
             }
         }
 
         stage('Security Scan (Trivy)') {
             steps {
-                echo "Scan de sécurité de l'image avec Trivy..."
+                echo "Scan sécurité..."
                 sh '''
                     mkdir -p ${REPORT_DIR}
                     mkdir -p ${TRIVY_CACHE}
 
-                    echo "=== Scan Trivy (JSON) ==="
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v ${TRIVY_CACHE}:/root/.cache/trivy \
@@ -43,7 +42,6 @@ pipeline {
                         --output /reports/trivy-raw.json \
                         smartphones-ml-app
 
-                    echo "=== Conversion JSON → CSV avec jq ==="
                     docker run --rm \
                         -v ${REPORT_DIR}:/reports \
                         imega/jq \
@@ -55,7 +53,6 @@ pipeline {
                         ' \
                         /reports/trivy-raw.json > ${REPORT_DIR}/resultat.csv
 
-                    echo "--- Aperçu du rapport ---"
                     head -20 ${REPORT_DIR}/resultat.csv
                 '''
             }
@@ -69,20 +66,25 @@ pipeline {
 
         stage('Start MLflow') {
             steps {
-                echo "Démarrage de MLflow..."
+                echo "Démarrage MLflow..."
                 sh 'docker-compose up -d mlflow'
 
-                echo "Attente du healthcheck MLflow..."
+                echo "Attente MLflow healthy..."
                 sh '''
                     for i in $(seq 1 24); do
-                        if docker-compose exec -T mlflow curl -sf http://localhost:5000/health; then
-                            echo "MLflow est prêt !"
+                        STATUS=$(docker inspect --format='{{.State.Health.Status}}' mlflow_server || echo "starting")
+
+                        if [ "$STATUS" = "healthy" ]; then
+                            echo "MLflow prêt !"
                             exit 0
                         fi
-                        echo "Tentative $i/24 - attente 5s..."
+
+                        echo "Etat: $STATUS | tentative $i/24..."
                         sleep 5
                     done
-                    echo "MLflow n'a pas démarré à temps"
+
+                    echo "MLflow non disponible"
+                    docker logs mlflow_server
                     exit 1
                 '''
             }
@@ -90,14 +92,14 @@ pipeline {
 
         stage('Model Training') {
             steps {
-                echo "Lancement de l'entraînement..."
+                echo "Training..."
                 sh 'docker-compose run --rm train'
             }
         }
 
         stage('Model Validation') {
             steps {
-                echo "Lancement de la prédiction..."
+                echo "Prediction..."
                 sh 'docker-compose run --rm predict'
             }
         }
@@ -105,19 +107,13 @@ pipeline {
 
     post {
         always {
-            script {
-                try {
-                    sh 'docker-compose down --remove-orphans || true'
-                } catch (Exception e) {
-                    echo "Erreur lors de l'arrêt des services : ${e.message}"
-                }
-            }
+            sh 'docker-compose down --remove-orphans || true'
         }
         success {
-            echo "Pipeline terminé avec succès !"
+            echo "Pipeline OK ✅"
         }
         failure {
-            echo "Pipeline échoué — consultez les logs ci-dessus."
+            echo "Pipeline FAILED ❌"
         }
     }
 }
