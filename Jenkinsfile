@@ -23,7 +23,7 @@ pipeline {
                 sh '''
                     mkdir -p ${WORKSPACE}/trivy-reports
 
-                    # Étape 1 : Scan image → JSON
+                    # Étape 1 : Scan → JSON
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
@@ -35,21 +35,16 @@ pipeline {
                         --output /reports/trivy-raw.json \
                         smartphones-ml-app
 
-                    # Étape 2 : JSON → CSV via trivy convert natif
+                    # Étape 2 : JSON → CSV avec trivy convert --format csv (natif v0.69)
                     docker run --rm \
                         -v ${WORKSPACE}/trivy-reports:/reports \
                         aquasec/trivy:0.69.3 convert \
-                        --format template \
-                        --template "@contrib/csv.tpl" \
+                        --format csv \
                         --output /reports/resultat.csv \
                         /reports/trivy-raw.json
 
                     echo "--- Aperçu du rapport ---"
-                    docker run --rm \
-                        -v ${WORKSPACE}/trivy-reports:/reports \
-                        aquasec/trivy:0.69.3 convert \
-                        --format table \
-                        /reports/trivy-raw.json || true
+                    head -20 ${WORKSPACE}/trivy-reports/resultat.csv
                 '''
             }
             post {
