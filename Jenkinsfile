@@ -20,21 +20,10 @@ pipeline {
         stage('Security Scan (Trivy)') {
             steps {
                 echo "Scan de sécurité de l'image avec Trivy..."
-
-                sh 'mkdir -p ${WORKSPACE}/trivy-reports'
-
-                writeFile file: 'trivy-reports/csv.tpl', text: '''PackageName,VulnerabilityID,Severity,InstalledVersion,FixedVersion,Title
-{{- range . }}
-{{- range .Vulnerabilities }}
-{{ .PkgName }},{{ .VulnerabilityID }},{{ .Severity }},{{ .InstalledVersion }},{{ .FixedVersion }},{{ .Title | js }}
-{{- end }}
-{{- end }}
-'''
                 sh '''
-                    echo "=== Vérification du template avant scan ==="
-                    ls -la ${WORKSPACE}/trivy-reports/
-                    cat ${WORKSPACE}/trivy-reports/csv.tpl
+                    mkdir -p ${WORKSPACE}/trivy-reports
 
+                    # Scan en JSON — aucun template externe nécessaire
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
@@ -42,13 +31,40 @@ pipeline {
                         aquasec/trivy:0.69.3 image \
                         --exit-code 0 \
                         --severity HIGH,CRITICAL \
-                        --format template \
-                        --template "@/reports/csv.tpl" \
-                        --output /reports/resultat.csv \
+                        --format json \
+                        --output /reports/trivy-raw.json \
                         smartphones-ml-app
 
-                    echo "--- Aperçu du rapport Trivy ---"
-                    cat ${WORKSPACE}/trivy-reports/resultat.csv
+                    # Conversion JSON → CSV via Python
+                    python3 - << 'PYEOF'
+import json, csv
+
+with open("/var/jenkins_home/workspace/ML_ops/trivy-reports/trivy-raw.json") as f:
+    data = json.load(f)
+
+rows = []
+for result in data.get("Results", []):
+    for vuln in result.get("Vulnerabilities", []):
+        rows.append([
+            vuln.get("PkgName", ""),
+            vuln.get("VulnerabilityID", ""),
+            vuln.get("Severity", ""),
+            vuln.get("InstalledVersion", ""),
+            vuln.get("FixedVersion", ""),
+            vuln.get("Title", "").replace(",", " ")
+        ])
+
+out = "/var/jenkins_home/workspace/ML_ops/trivy-reports/resultat.csv"
+with open(out, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["PackageName","VulnerabilityID","Severity","InstalledVersion","FixedVersion","Title"])
+    writer.writerows(rows)
+
+print(f"CSV généré : {len(rows)} vulnerabilites HIGH/CRITICAL")
+PYEOF
+
+                    echo "--- Aperçu du rapport ---"
+                    head -20 ${WORKSPACE}/trivy-reports/resultat.csv
                 '''
             }
             post {
