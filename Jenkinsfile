@@ -23,7 +23,7 @@ pipeline {
                 sh '''
                     mkdir -p ${WORKSPACE}/trivy-reports
 
-                    # Étape 1 : Scan Trivy → JSON (pas de template externe)
+                    # Étape 1 : Scan Trivy → JSON
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
@@ -35,11 +35,11 @@ pipeline {
                         --output /reports/trivy-raw.json \
                         smartphones-ml-app
 
-                    # Étape 2 : Conversion JSON → CSV via conteneur Python
+                    # Étape 2 : JSON → CSV dans le même conteneur Trivy
                     docker run --rm \
                         -v ${WORKSPACE}/trivy-reports:/reports \
-                        python:3.9-slim \
-                        python3 -c "
+                        aquasec/trivy:0.69.3 \
+                        sh -c "python3 -c \"
 import json, csv
 
 with open('/reports/trivy-raw.json') as f:
@@ -62,8 +62,9 @@ with open('/reports/resultat.csv', 'w', newline='') as f:
     writer.writerow(['PackageName','VulnerabilityID','Severity','InstalledVersion','FixedVersion','Title'])
     writer.writerows(rows)
 
-print(f'CSV genere : {len(rows)} vulnerabilites HIGH/CRITICAL')
-"
+print(str(len(rows)) + ' vulnerabilites ecrites dans resultat.csv')
+\""
+
                     echo "--- Aperçu du rapport ---"
                     head -20 ${WORKSPACE}/trivy-reports/resultat.csv
                 '''
