@@ -22,15 +22,25 @@ pipeline {
                 sh '''
                     mkdir -p trivy-reports
 
+                    cat > trivy-reports/csv.tpl << 'EOF'
+PackageName,VulnerabilityID,Severity,InstalledVersion,FixedVersion,Title
+{{- range . }}
+{{- $target := .Target }}
+{{- range .Vulnerabilities }}
+{{ .PkgName }},{{ .VulnerabilityID }},{{ .Severity }},{{ .InstalledVersion }},{{ .FixedVersion }},{{ .Title | js }}
+{{- end }}
+{{- end }}
+EOF
+
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
                         -v $(pwd)/trivy-reports:/reports \
-                        aquasec/trivy:latest image \
+                        aquasec/trivy:0.69.3 image \
                         --exit-code 0 \
                         --severity HIGH,CRITICAL \
                         --format template \
-                        --template "@contrib/csv.tpl" \
+                        --template "@/reports/csv.tpl" \
                         --output /reports/resultat.csv \
                         smartphones-ml-app
 
