@@ -23,7 +23,7 @@ pipeline {
                 sh '''
                     mkdir -p ${WORKSPACE}/trivy-reports
 
-                    # Étape 1 : Scan Trivy → JSON
+                    # Étape 1 : Scan image → JSON
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
                         -v $HOME/.cache/trivy:/root/.cache/trivy \
@@ -35,38 +35,21 @@ pipeline {
                         --output /reports/trivy-raw.json \
                         smartphones-ml-app
 
-                    # Étape 2 : JSON → CSV dans le même conteneur Trivy
+                    # Étape 2 : JSON → CSV via trivy convert natif
                     docker run --rm \
                         -v ${WORKSPACE}/trivy-reports:/reports \
-                        aquasec/trivy:0.69.3 \
-                        sh -c "python3 -c \"
-import json, csv
-
-with open('/reports/trivy-raw.json') as f:
-    data = json.load(f)
-
-rows = []
-for result in data.get('Results', []):
-    for vuln in result.get('Vulnerabilities', []):
-        rows.append([
-            vuln.get('PkgName', ''),
-            vuln.get('VulnerabilityID', ''),
-            vuln.get('Severity', ''),
-            vuln.get('InstalledVersion', ''),
-            vuln.get('FixedVersion', ''),
-            vuln.get('Title', '').replace(',', ' ')
-        ])
-
-with open('/reports/resultat.csv', 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(['PackageName','VulnerabilityID','Severity','InstalledVersion','FixedVersion','Title'])
-    writer.writerows(rows)
-
-print(str(len(rows)) + ' vulnerabilites ecrites dans resultat.csv')
-\""
+                        aquasec/trivy:0.69.3 convert \
+                        --format template \
+                        --template "@contrib/csv.tpl" \
+                        --output /reports/resultat.csv \
+                        /reports/trivy-raw.json
 
                     echo "--- Aperçu du rapport ---"
-                    head -20 ${WORKSPACE}/trivy-reports/resultat.csv
+                    docker run --rm \
+                        -v ${WORKSPACE}/trivy-reports:/reports \
+                        aquasec/trivy:0.69.3 convert \
+                        --format table \
+                        /reports/trivy-raw.json || true
                 '''
             }
             post {
