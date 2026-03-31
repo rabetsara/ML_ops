@@ -7,7 +7,7 @@ services:
     volumes:
       - ./mlruns:/mlflow/mlruns
     environment:
-      - MLFLOW_ALLOW_INSECURE_HOST_VALIDATION=true
+      - MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE=true
     command: >
       mlflow server
       --backend-store-uri /mlflow/mlruns
