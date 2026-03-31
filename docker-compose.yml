@@ -6,19 +6,20 @@ services:
       - "5000:5000"
     volumes:
       - ./mlruns:/mlflow/mlruns
+    environment:
+      - MLFLOW_ALLOW_INSECURE_HOST_VALIDATION=true
     command: >
       mlflow server
       --backend-store-uri /mlflow/mlruns
       --default-artifact-root /mlflow/mlruns
       --host 0.0.0.0
       --port 5000
-      --disable-host-validation
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 10s
+      start_period: 15s
 
   app:
     build: .
