@@ -12,6 +12,7 @@ services:
       --default-artifact-root /mlflow/mlruns
       --host 0.0.0.0
       --port 5000
+      --disable-host-validation
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
       interval: 5s
