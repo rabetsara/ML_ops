@@ -31,6 +31,7 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./mlruns:/mlflow/mlruns
+      - ./workspace:/app/workspace
 
   train:
     build: .
@@ -42,7 +43,9 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./mlruns:/mlflow/mlruns
-    command: python train_phone.py
+      - ./workspace:/app/workspace
+    working_dir: /app/workspace
+    command: python /app/train_phone.py
 
   predict:
     build: .
@@ -54,4 +57,6 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./mlruns:/mlflow/mlruns
-    command: python predict_phone.py
+      - ./workspace:/app/workspace
+    working_dir: /app/workspace
+    command: python /app/predict_phone.py
